@@ -156,7 +156,7 @@ index_generator_plus:
   path: ''
   per_page: 10
 
-theme: jekyll-theme-merlot
+theme: jekyll-theme-cayman
 
 sitemap:
   path: sitemap.xml
