@@ -2,7 +2,7 @@
 title: redis-streams
 date: 2019-11-28 17:16:40
 tags: Redis
-category: redis
+category: Redis
 ---
 
 # 概述
@@ -293,4 +293,6 @@ Processed between 4 and 5 ms -> 0.02%
 99.9％的请求的延迟小于等于2毫秒，而且异常值非常接近平均值。另外需要注意的两点：
 1. 消费者每次处理1w条消息，这样增加了一些延迟，这样做是为了消费速度较慢的消费者能够保持保持消息流。
 1. 用来做测试的系统相比于现在的系统非常慢。
+
+官方链接 https://redis.io/topics/streams-intro
 

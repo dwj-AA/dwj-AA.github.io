@@ -12,7 +12,7 @@ timezone:
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
 url: http://www.duwenjie.com/       # Note: don't forget to modify the CNAME file to your url
-root: /
+root: /blog/
 #permalink: :year/:month/:day/:title/
 permalink: :category/:title/
 permalink_defaults:
@@ -156,7 +156,7 @@ index_generator_plus:
   path: ''
   per_page: 10
 
-theme: jacman
+theme: clean-blog
 
 sitemap:
   path: sitemap.xml
@@ -164,5 +164,5 @@ sitemap:
 deploy:
   type: git
   repository: https://github.com/dwj-AA/dwj-AA.github.io
-  branch: gh-pages
+  branch: master
   message: Update CNAME
