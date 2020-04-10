@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>
+    Pcrab  - redis-streams 
+  </title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  
+  <link rel="shortcut icon" href="/favicon.ico" />
+  
+
+  <link rel="stylesheet" href="/blog/css/style.css">
+  <link href="https://google-fonts.mirrors.sjtug.sjtu.edu.cn/css?family=Noto+Sans+SC&display=swap" rel="stylesheet">
+
+  
+  
+
+  <link rel="stylesheet" href="/blog/css/iDisqus.min.css">
+  <script src="/blog/js/iDisqus.min.js"></script>
+
+  <script>
+  var disq = new iDisqus('comment', {
+      forum: 'pcrab-blog',
+      api: 'https://disqus.pcrab.ml',
+      site: 'https://pcrab.ml',
+      mode: 1,
+      timeout: 3000,
+      init: true
+  });
+  </script>
+  
+  
+
+  <script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.min.js"></script>
+</head>
+
+<body>
+  <div class="title">
+  <img class="title_img" src="https://pcrab.ml/images/icon.png"/><br>
+  <p id="site_title">&nbspPcrab 的日常&nbsp</p>
+</div>
+
+  <div class="navi">
+    <a id="navi_item" href="/#" class="menu-item-link">Home</a>
+    <a id="navi_item" href="/tags" class="menu-item-link">tags</a>
+    <a id="navi_item" href="/about" class="menu-item-link">about</a>
+    <a id="navi_item" href="/search" class="menu-item-link">search</a>
+</div>
+
+<hr/>
+
+
+  <div class="main">
+    <post>
+
+  <div class="post_title">
+    redis-streams
+  </div>
+
+  <br/><br/>
+
+  <div id="post_content">
+    <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>相较于Redis4.0，Redis5.0增加了很多新的特性，而streams是其中最重要的特性之一。streams是redis 的一种基本数据结构，它是一个新的强大的支持多播的可持久化的消息队列，在设计上借鉴了kafaka。streams的数据类型本身非常简单，有点类似于hash结构，但是它的额外特性异常强大且复杂：</p>
+<ul>
+<li>支持持久化。streams能持久化存储数据，不同于<code>pub/sub</code>机制和<code>list</code> 消息被消费后就会被删除，streams消费过的数据会被持久化的保存在历史中。</li>
+<li>支持多播。 这一点跟 <code>pub/sub</code>有些类似。</li>
+<li>支持消费者组。streams 允许同一消费组内的消费者竞争消息，并提供了一系列机制允许消费者查看自己的历史消费消息。并允许监控streams的消费者组信息，消费者组内消费者信息，也可以监控streams内消息的状态。</li>
+</ul>
+<h1 id="基础内容"><a href="#基础内容" class="headerlink" title="基础内容"></a>基础内容</h1><h2 id="数据-ID"><a href="#数据-ID" class="headerlink" title="数据 ID"></a>数据 ID</h2><p>streams 提供了默认的id模式用来唯一标识streams中的每一条数据，由两部分组成：<br><code>&lt;millisecondsTime&gt;-&lt;sequenceNumber&gt;</code><br>millisecondsTime是redis服务所在机器的时间，sequenceNumber用于同一毫秒创建的数据。需要注意的一点是streams的id总是单调增长的，即使redis服务所在的服务器时间异常。如果当前的毫秒数小于以前的毫秒数，就会使用历史记录中最大的毫秒数，然后序列号递增。而这样做的原因是因为streams的机制允许根据时间区间或者某一个时间节点或者某一id查找数据。</p>
+<h2 id="向streams插入数据"><a href="#向streams插入数据" class="headerlink" title="向streams插入数据"></a>向streams插入数据</h2><p>streams 的基础写命令为<code>XADD</code>，其语法为<code>XADD key ID field value [field value ...]</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XADD mystream * name dwj age 18</span><br><span class="line"><span class="string">"1574925508730-0"</span></span><br><span class="line">127.0.0.1:6379&gt;</span><br></pre></td></tr></table></figure>
+<p>上面的例子使用<code>XADD</code>向名为<code>mystream</code>的streams中添加了一条数据，ID使用*表示使用streams使用默认的ID，在本例中redis返回的<code>1574925508730-0</code>就是redis为我们插入的数据生成的ID。</p>
+<p>另外streams 查看streams长度的命令为<code>XLEN</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XLEN mystream</span><br><span class="line">(<span class="built_in">integer</span>) 3</span><br><span class="line">127.0.0.1:6379&gt;</span><br></pre></td></tr></table></figure>
+<h2 id="从streams中读取数据"><a href="#从streams中读取数据" class="headerlink" title="从streams中读取数据"></a>从streams中读取数据</h2><p>从streams中读取数据会比写数据复杂很多，用日志文件进行对比，我们可以查看历史日志，可以根据范围查询日志，我们可以通过unix的命令<code>tail -f</code>来监听日志，可以多个用户查看到同一份日志，也可以多个用户只能查看到自己有权限查看的那一部分日志。</p>
+<h3 id="按范围查询-XRANGE-和-XREVRANGE"><a href="#按范围查询-XRANGE-和-XREVRANGE" class="headerlink" title="按范围查询: XRANGE 和 XREVRANGE"></a>按范围查询: XRANGE 和 XREVRANGE</h3><p>首先来介绍一下 根据范围查询，这两种操作都比较简单，以<code>XRANGE</code>为例，它的语法格式为<code>XRANGE key start end [COUNT count]</code>, 我们只需要提供两个id，<code>start</code>和<code>end</code>，返回的将是一个包含<code>start</code>和<code>end</code>的闭区间。两个特殊的ID<code>-</code>和<code>+</code>分别表示可能的最小ID和最大ID。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XRANGE mystream - +</span><br><span class="line">1) 1) <span class="string">"1574835253335-0"</span></span><br><span class="line">   2) 1) <span class="string">"name"</span></span><br><span class="line">      2) <span class="string">"bob"</span></span><br><span class="line">      3) <span class="string">"age"</span></span><br><span class="line">      4) <span class="string">"23"</span></span><br><span class="line">2) 1) <span class="string">"1574925508730-0"</span></span><br><span class="line">   2) 1) <span class="string">"name"</span></span><br><span class="line">      2) <span class="string">"dwj"</span></span><br><span class="line">      3) <span class="string">"age"</span></span><br><span class="line">      4) <span class="string">"18"</span></span><br><span class="line">127.0.0.1:6379&gt;</span><br></pre></td></tr></table></figure>
+<p>我们前边提到过数据id中包含了创建数据的时间信息，这意味着我们可以根据时间范围查询数据，为了根据时间范围查询，我们省略掉ID的序列号部分，如果省略，对于start ID会使用0作为默认的序列号，对于end ID会使用最大序列号作为默认值，这样的话我们使用两个unix时间戳去查询数据就可以得到那个时间区间内所有的数据。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">1) 1) <span class="string">"1574835253335-0"</span></span><br><span class="line">   2) 1) <span class="string">"name"</span></span><br><span class="line">      2) <span class="string">"bob"</span></span><br><span class="line">      3) <span class="string">"age"</span></span><br><span class="line">      4) <span class="string">"23"</span></span><br><span class="line">127.0.0.1:6379&gt;</span><br></pre></td></tr></table></figure>
+<p>可能还会有同学注意到语法的最后边还有<code>count</code>参数，这个参数允许我们一次只返回固定数量的数据，然后根据返回数据的last_id，作为下一次查询的start，这样就允许我们在一个量非常大的streams里批量返回数据。<br>XREVRANGE命令与XRANGE相同，但是以相反的顺序返回元素，就不重复介绍了。</p>
+<h3 id="通过XREAD读取数据"><a href="#通过XREAD读取数据" class="headerlink" title="通过XREAD读取数据"></a>通过XREAD读取数据</h3><p>XREAD允许我们从某一结点开始从streams中读取数据，它的语法为<code>XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]</code>，我们在这里主要将的是通过<code>XREAD</code>来订阅到达streams新的数据。这种操作可能跟REDIS中原有的<code>pub/sub</code>机制或者<code>阻塞队列</code>的概念有些类似，都是等待一个key然后获取到新的数据，但是跟这两种有着本质的差别：</p>
+<ul>
+<li>streams跟<code>pub/sub</code>和<code>阻塞队列</code>允许多个客户端一起等待数据，默认情况下，streams会把消息推送给所有等待streams数据的客户端，这个能力跟<code>pub/sub</code>有点类似，但是streams也允许把消息通过竞争机制推送给其中的一个客户端（这种模式需要用到消费者组的概念，会在后边讲到）。</li>
+<li><code>pub/sub</code>的消息是fire and forget并且从不存储，你只可以订阅到在你订阅时间之后产生的消息，并且消息只会推送给客户端一次，不能查看历史记录。以及使用<code>阻塞队列</code>时，当客户端收到消息时，这个元素会从队列中弹出，换句话说，不能查看某个消费者消费消息的历史。而在streams中所有的消息会被无限期的加入到streams中（消息可以被显式的删除并且存在淘汰机制），客户端需要记住收到的最后一条消息，用于获取到节点之后的新消息。</li>
+<li>Streams 消费者组提供了一种Pub/Sub或者阻塞列表都不能实现的控制级别，同一个Stream不同的群组，显式地确认已经处理的项目，检查待处理的项目的能力，申明未处理的消息，以及每个消费者拥有连贯历史可见性，单个客户端只能查看自己过去的消息历史记录。<br>从streams中读取数据<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XREAD COUNT 2 STREAMS mystream 0</span><br><span class="line">1) 1) <span class="string">"mystream"</span></span><br><span class="line">   2) 1) 1) <span class="string">"1574835253335-0"</span></span><br><span class="line">         2) 1) <span class="string">"name"</span></span><br><span class="line">            2) <span class="string">"bob"</span></span><br><span class="line">            3) <span class="string">"age"</span></span><br><span class="line">            4) <span class="string">"23"</span></span><br><span class="line">      2) 1) <span class="string">"1574925508730-0"</span></span><br><span class="line">         2) 1) <span class="string">"name"</span></span><br><span class="line">            2) <span class="string">"dwj"</span></span><br><span class="line">            3) <span class="string">"age"</span></span><br><span class="line">            4) <span class="string">"18"</span></span><br><span class="line">127.0.0.1:6379&gt;</span><br></pre></td></tr></table></figure>
+同list结构一样，streams也提供了阻塞读取的命令<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">XREAD BLOCK 0 STREAMS mystream</span><br></pre></td></tr></table></figure>
+在上边的命令中指定了BLOCK选项，超时时间为0毫秒（意味着永不会过期）。此外，这个地方使用了特殊的id <code>$</code>，这个特殊的id代表着当前streams中最大的id，这就意味着你只会读取streams中在你监听时间以后的消息。有点类似于Unix的<code>tail -f</code>。另外XREAD可以同时监听多个流中的数据。</li>
+</ul>
+<h1 id="消费者组"><a href="#消费者组" class="headerlink" title="消费者组"></a>消费者组</h1><p>如果我们想要的不是多个客户端处理相同的消息，而是多个客户端从streams中获取到不同的消息进行处理。也就是我们常用的生产者-消费者模型。假如想象我们具有两个生产者p1,p2，三个消费者c1,c2,c3以及7个商品。我们想按照下面的效果进行处理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">p1 =&gt;item1 =&gt; c1</span><br><span class="line">p2 =&gt;item2 =&gt; c2</span><br><span class="line">p1 =&gt;item3 =&gt; c3</span><br><span class="line">p2 =&gt;item4 =&gt; c1</span><br><span class="line">p1 =&gt;item5 =&gt; c2</span><br><span class="line">p2 =&gt;item6 =&gt; c3</span><br><span class="line">p1 =&gt;item7 =&gt; c1</span><br></pre></td></tr></table></figure>
+<p>为了解决这种场景，redis使用了一个名为消费者的概念，有点类似于kafka，但只是表现上。消费者组就像是一个伪消费者，它从流内读取数据，然后分发给组内的消费者，并记录该消费者组消费了哪些数据，处理了那些数据，并提供了一系列功能。</p>
+<ol>
+<li>每条消息都提供给不同的消费者，因此不可能将相同的消息传递给多个消费者。</li>
+<li>消费者在消费者组中通过名称来识别，该名称是实施消费者的客户必须选择的区分大小写的字符串。这意味着即便断开连接过后，消费者组仍然保留了所有的状态，因为客户端会重新申请成为相同的消费者。 然而，这也意味着由客户端提供唯一的标识符。</li>
+<li>每一个消费者组都有一个第一个ID永远不会被消费的概念，这样一来，当消费者请求新消息时，它能提供以前从未传递过的消息。</li>
+<li>消费消息需要使用特定的命令进行显式确认，表示：这条消息已经被正确处理了，所以可以从消费者组中逐出。</li>
+<li>消费者组跟踪所有当前所有待处理的消息，也就是，消息被传递到消费者组的一些消费者，但是还没有被确认为已处理。由于这个特性，当访问一个Stream的历史消息的时候，每个消费者将只能看到传递给它的消息。</li>
+</ol>
+<p>它的模型类似于如下</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">| consumer_group_name: mygroup           |</span><br><span class="line">| consumer_group_stream: somekey         |</span><br><span class="line">| last_delivered_id: <span class="number">1292309234234</span><span class="number">-92</span>    |</span><br><span class="line">|                                        |</span><br><span class="line">| consumers:                             |</span><br><span class="line">|    <span class="string">"consumer-1"</span> <span class="keyword">with</span> pending messages  |</span><br><span class="line">|       <span class="number">1292309234234</span><span class="number">-4</span>                  |</span><br><span class="line">|       <span class="number">1292309234232</span><span class="number">-8</span>                  |</span><br><span class="line">|    <span class="string">"consumer-42"</span> <span class="keyword">with</span> pending messages |</span><br><span class="line">|       ... (and so forth)               |</span><br></pre></td></tr></table></figure>
+<p>从上边的模型中我们可以看出消费者组记录处理的最后一条消息，将消息分发给不同的消费者，每个消费者只能看到自己的消息。如果把消费者组看做streams的辅助数据结构，我们可以看出一个streams可以拥有多个消费者组，一个消费者组内可以拥有多个消费者。实际上，一个streams允许客户端使用XREAD读取的同时另一个客户端通过消费者群组读取数据。</p>
+<h2 id="创建一个消费者群组"><a href="#创建一个消费者群组" class="headerlink" title="创建一个消费者群组"></a>创建一个消费者群组</h2><p>我们首先创建一个包含了一些数据的streams</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XADD fruit * message apple</span><br><span class="line"><span class="string">"1574935311149-0"</span></span><br><span class="line">127.0.0.1:6379&gt; XADD fruit * message banada</span><br><span class="line"><span class="string">"1574935315886-0"</span></span><br><span class="line">127.0.0.1:6379&gt; XADD fruit * message pomelo</span><br><span class="line"><span class="string">"1574935323628-0"</span></span><br></pre></td></tr></table></figure>
+<p>然后创建一个消费者组</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XGROUP CREATE fruit mygroup $</span><br><span class="line">OK</span><br></pre></td></tr></table></figure>
+<p>注意我们需要指定一个id，这里我们使用的是特殊id<code>$</code>，我们也可以使用0或者一个unix时间戳，这样，消费者组只会读取这个节点之后的消息。</p>
+<p>现在消费者组创建好了，我们可以使用XREADGROUP命令立即开始尝试通过消费者组读取消息。<br><code>XREADGROUP GROUP group consumer [COUNT count] [BLOCK milliseconds] [NOACK] STREAMS key [key ...] ID [ID ...]</code>，与<code>XREAD</code>类似，提供了BLOCK选项。假设指定消费者分别是Alice和Bob，来看看系统会怎样返回不同消息给Alice和Bob。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XREADGROUP GROUP  mygroup Alice COUNT 1 STREAMS fruit &gt;</span><br><span class="line">1) 1) <span class="string">"fruit"</span></span><br><span class="line">   2) 1) 1) <span class="string">"1574936034258-0"</span></span><br><span class="line">         2) 1) <span class="string">"message"</span></span><br><span class="line">            2) <span class="string">"apple"</span></span><br><span class="line">127.0.0.1:6379&gt;</span><br></pre></td></tr></table></figure>
+<p>上边命令代表的信息是：我要通过<code>mygroup</code>读取streams <code>fruit</code>中的数据，我在群组中的身份是<code>Alice</code>，请给我一条数据。 <code>&gt;</code>操作符只在消费者组的上线文中有效，代表消息到目前为止没有交给其它消费者处理过。<br>我们也可以使用一个有效的id，在这种情况下，消费者组会告诉我们的历史待处理消息，而不会告诉我们新的消息。这个特性也是很有用的，当消费者因为某些原因重新启动后，我们可以查看自己的历史待处理消息，处理完待处理消息后再去处理新的消息。<br>我们可以通过<code>XACK</code>命令告诉消费者组某条消息已经被正确处理，不要显示在我的历史待处理消息列表中。<code>XACK</code>的语法为<code>XACK key group ID [ID ...]</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XACK fruit mygroup 1574936034258-0</span><br><span class="line">(<span class="built_in">integer</span>) 1</span><br></pre></td></tr></table></figure>
+<p>有几件事需要记住：</p>
+<ol>
+<li>消费者是在他们第一次被提及的时候自动创建的，不需要显式创建。</li>
+<li>即使使用XREADGROUP，你也可以同时从多个key中读取，但是要让其工作，你需要给每一个Stream创建一个名称相同的消费者组。这并不是一个常见的需求，但是需要说明的是，这个功能在技术上是可以实现的。</li>
+<li>XREADGROUP命令是一个写命令，因为当它从Stream中读取消息时，消费者组被修改了，所以这个命令只能在master节点调用。</li>
+</ol>
+<h2 id="从永久失败中恢复"><a href="#从永久失败中恢复" class="headerlink" title="从永久失败中恢复"></a>从永久失败中恢复</h2><p>在一个消费者群组中可能存在多个消费者消费消息，但是也可能会存在某一个消费者永久退出消费者群组的情况，这样我们就需要一种机制，把该消费者的待处理消息分配给消费者群组的另一个消费者。这就需要我们具有查看待处理消息的能力以及把某个消息分配给指定消费者的能力。前者是通过一个叫<code>XPENDING</code>的命令，它的语法为<code>XPENDING key group [start end count] [consumer]</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XPENDING fruit mygroup</span><br><span class="line">1) (<span class="built_in">integer</span>) 1</span><br><span class="line">2) <span class="string">"1574936042937-0"</span></span><br><span class="line">3) <span class="string">"1574936042937-0"</span></span><br><span class="line">4) 1) 1) <span class="string">"Alice"</span></span><br><span class="line">      2) <span class="string">"1"</span></span><br></pre></td></tr></table></figure>
+<p>上述返回结果代表的是消费者群组有1条待处理命令，待处理消息的起始id为<code>1574936042937-0</code>,结束id为<code>1574936042937-0</code>，名为<code>Alice</code>的消费者有一个待处理命令，可能有人会好奇我们在前边往<code>fruit</code>放入了3个水果，使用<code>XACK</code>处理了一个水果，消费者待处理列表中应该有两个水果，而事实上消费者群组的待处理列表为该群组下消费者待处理消息的合集，当有消费者通过群组获取消息的时候会改变消费者群组的状态，这也是前边提到的为什么<code>XREADGROUP</code>必须在master节点进行调用。<br>我们可以使用start end count 参数来查看某个范围内消息的状态</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XPENDING fruit mygroup - + 10 Alice</span><br><span class="line">1) 1) <span class="string">"1574936042937-0"</span></span><br><span class="line">   2) <span class="string">"Alice"</span></span><br><span class="line">   3) (<span class="built_in">integer</span>) 903655</span><br><span class="line">   4) (<span class="built_in">integer</span>) 1</span><br><span class="line">2) 1) <span class="string">"1574936052018-0"</span></span><br><span class="line">   2) <span class="string">"Alice"</span></span><br><span class="line">   3) (<span class="built_in">integer</span>) 491035</span><br><span class="line">   4) (<span class="built_in">integer</span>) 1</span><br></pre></td></tr></table></figure>
+<p>这样我们就看到了一条消息的详细信息，id为<code>1574936042937-0</code>的消息的消费者为<code>Alice</code>，它的pending时间为<code>903655</code>，这个消息被分配了1次。<br>我们会发现第一条消息的处理时间有点长，我们怀疑<code>Alice</code>已经不能处理这条消息了，于是我们想把这条消息分配给<code>Bob</code>，这种场景下就需要用到了<code>XCLAIM</code>命令，它的语法为<code>XCLAIM &lt;key&gt; &lt;group&gt; &lt;consumer&gt; &lt;min-idle-time&gt; &lt;ID-1&gt; &lt;ID-2&gt; ... &lt;ID-N&gt;</code>，其中min-idle-time为消息的最小空闲时间，只有消息的空闲时间大于这个值消息才会被分配，因为消息被分配的时候会重置消息的空闲时间，如果有同时把一条消息分配给两个客户端，只会第一条命令生效，因为当消息分配给第一个客户端的时候重置空闲时间，第二条命令则会失效。<br>我们也可以使用一个独立的进程来不断寻找超时的消息，并把它分配给活跃的消费者，不过需要注意的是，如果消息的分配次数达到某个阙值，不应该把消息再分配出去，而是应该放到别的地方。</p>
+<h1 id="streams的可观察性"><a href="#streams的可观察性" class="headerlink" title="streams的可观察性"></a>streams的可观察性</h1><p>streams具有不错的可观察性，前边的<code>XPENDING</code>命令允许我们查看streams在某个消费者群组内待处理消息的状态。但是我们想看的更多，比如在这个streams下有多少个group, 在这个group下有多少消费者。这就要用到<code>XINFO</code>命令：<br>查看<code>streams</code>信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XINFO STREAM mystream</span><br><span class="line"> 1) <span class="string">"length"</span></span><br><span class="line"> 2) (<span class="built_in">integer</span>) 2</span><br><span class="line"> 3) <span class="string">"radix-tree-keys"</span></span><br><span class="line"> 4) (<span class="built_in">integer</span>) 1</span><br><span class="line"> 5) <span class="string">"radix-tree-nodes"</span></span><br><span class="line"> 6) (<span class="built_in">integer</span>) 2</span><br><span class="line"> 7) <span class="string">"groups"</span></span><br><span class="line"> 8) (<span class="built_in">integer</span>) 1</span><br><span class="line"> 9) <span class="string">"last-generated-id"</span></span><br><span class="line">10) <span class="string">"1574925508730-0"</span></span><br><span class="line">11) <span class="string">"first-entry"</span></span><br><span class="line">12) 1) <span class="string">"1574835253335-0"</span></span><br><span class="line">    2) 1) <span class="string">"name"</span></span><br><span class="line">       2) <span class="string">"bob"</span></span><br><span class="line">       3) <span class="string">"age"</span></span><br><span class="line">       4) <span class="string">"23"</span></span><br><span class="line">13) <span class="string">"last-entry"</span></span><br><span class="line">14) 1) <span class="string">"1574925508730-0"</span></span><br><span class="line">    2) 1) <span class="string">"name"</span></span><br><span class="line">       2) <span class="string">"dwj"</span></span><br><span class="line">       3) <span class="string">"age"</span></span><br><span class="line">       4) <span class="string">"18"</span></span><br></pre></td></tr></table></figure>
+<p>输出中会告诉我们streams的长度，群组数量，第一条和最后一条信息的详情。下面看一下streams下群组的信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XINFO GROUPS fruit</span><br><span class="line">1) 1) <span class="string">"name"</span></span><br><span class="line">   2) <span class="string">"mygroup"</span></span><br><span class="line">   3) <span class="string">"consumers"</span></span><br><span class="line">   4) (<span class="built_in">integer</span>) 1</span><br><span class="line">   5) <span class="string">"pending"</span></span><br><span class="line">   6) (<span class="built_in">integer</span>) 2</span><br><span class="line">   7) <span class="string">"last-delivered-id"</span></span><br><span class="line">   8) <span class="string">"1574936052018-0"</span></span><br><span class="line">2) 1) <span class="string">"name"</span></span><br><span class="line">   2) <span class="string">"mygroup-1"</span></span><br><span class="line">   3) <span class="string">"consumers"</span></span><br><span class="line">   4) (<span class="built_in">integer</span>) 0</span><br><span class="line">   5) <span class="string">"pending"</span></span><br><span class="line">   6) (<span class="built_in">integer</span>) 0</span><br><span class="line">   7) <span class="string">"last-delivered-id"</span></span><br><span class="line">   8) <span class="string">"0-0"</span></span><br></pre></td></tr></table></figure>
+<p>我们可以从输出中看到<code>fruit</code>下有两个群组，群组的名称以及待处理消息的数量，处理的最后一条消息。我们可以在详细的查看下消费者群组内消费者的状态。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; XINFO CONSUMERS fruit mygroup</span><br><span class="line">1) 1) <span class="string">"name"</span></span><br><span class="line">   2) <span class="string">"Alice"</span></span><br><span class="line">   3) <span class="string">"pending"</span></span><br><span class="line">   4) (<span class="built_in">integer</span>) 2</span><br><span class="line">   5) <span class="string">"idle"</span></span><br><span class="line">   6) (<span class="built_in">integer</span>) 1990242</span><br><span class="line">2) 1) <span class="string">"name"</span></span><br><span class="line">   2) <span class="string">"Bob"</span></span><br><span class="line">   3) <span class="string">"pending"</span></span><br><span class="line">   4) (<span class="built_in">integer</span>) 1</span><br><span class="line">   5) <span class="string">"idle"</span></span><br><span class="line">   6) (<span class="built_in">integer</span>) 9178</span><br></pre></td></tr></table></figure>
+<p>从输出中可以看到消费者待处理消息的数量以及消费者的闲置时间。</p>
+<h1 id="设置streams上限"><a href="#设置streams上限" class="headerlink" title="设置streams上限"></a>设置streams上限</h1><p>如果从streams可以查看到历史记录，我们可能会有疑惑，如果streams无限期的加入内存会不会够用，一旦消息数量达到上限，将消息永久删除或者持久化到数据库都是有必要的，redis也提供了诸如此类场景的支持。<br>一种方法是我们使用<code>XADD</code>的时候指定streams的最大长度，<code>XADD mystream MAXLEN ~ 1000</code>其中的数值前可以加上<code>~</code>标识不需要精确的将长度保持在1000，比1000多一些也可以接受。如果不使用该标识，性能会差一些。另一种方法是使用<code>XTRIM</code>，该命令也是使用<code>MAXLEN</code>选项，<code>&gt; XTRIM mystream MAXLEN ~ 10</code></p>
+<h1 id="一些特殊的id"><a href="#一些特殊的id" class="headerlink" title="一些特殊的id"></a>一些特殊的id</h1><p>前面提到了在streams API里边存在一些特殊的id。<br>首先是<code>-</code>和<code>+</code>，这两个ID在<code>XRANGE</code>命令中使用，分别代表最小的id和最大的id。<code>-</code>代表<code>0-1</code>，<code>+</code>代表<code>18446744073709551615-18446744073709551615</code>，从使用上方便了很多。在<code>XPENDING</code>等范围查询中都可以使用。<br><code>$</code>代表streams中当前存在的最大的id，在<code>XREAD</code>和<code>XGROUP</code>中代表只获取新到的消息。需要注意的是<code>$</code>跟<code>+</code>的含义并不一致。<br>还有一个特殊的id是<code>&gt;</code>，这个id只能够在<code>XREADGROUP</code>命令中使用，意味着在这个消费者群组中，从来没有分配给其他的消费者，所以总是使用<code>&gt;</code>作为群组中的<code>last delivered ID</code>。</p>
+<h1 id="持久化，复制和消息安全性"><a href="#持久化，复制和消息安全性" class="headerlink" title="持久化，复制和消息安全性"></a>持久化，复制和消息安全性</h1><p>与redis的其它数据结构一样，streams会异步复制到从节点，并持久化到AOF和RDB文件中，并且消费者群组的状态也会按照此机制进行持久化。<br>需要注意的几点是：</p>
+<ul>
+<li>如果消息的持久化以及状态很重要，则AOF必须使用强fsync配合（AOF记录每一条更改redis数据的命令，有很多种持久化机制，在这个地方要用到的是<code>appendfsync always</code> 这样会严重降低Redis的速度）</li>
+<li>默认情况下，异步复制不能保证从节点的数据与主节点保持一致，在故障转移以后可能会丢失一些内容，这跟从节点从主节点接受数据的能力有关。</li>
+<li><code>WAIT</code>命令可以用于强制将更改传输到一组从节点上。虽然这使得数据不太可能会丢失，但是redis的Sentinel和cluster在进行故障转移的时候不一定会使用具有最新数据的从节点，在一些特殊故障下，反而会使用缺少一些数据的从节点。<br>因此在使用redis streams和消费者群组在设计程序的时候，确保了解你的应用程序在故障期间的应对策略，并进行相应地配置，评估它对你的程序是否足够安全。</li>
+</ul>
+<h1 id="从streams中删除数据"><a href="#从streams中删除数据" class="headerlink" title="从streams中删除数据"></a>从streams中删除数据</h1><p>删除streams中的数据使用<code>XDEL</code>命令，其语法为<code>XDEL key ID [ID ...]</code>，需要注意的是在当前的实现中，在宏节点完全为空之前，内存并没有真正回收，所以你不应该滥用这个特性。</p>
+<h1 id="streams的性能"><a href="#streams的性能" class="headerlink" title="streams的性能"></a>streams的性能</h1><p>streams的不阻塞命令，比如<code>XRANGE</code>或者不使用BLOCK选项的<code>XREAD</code>和<code>XREADGROUP</code>跟redis普通命令一致，所以没有必要讨论。如果有兴趣的话可以在redis的文档中查看到对应命令的时间复杂度。streams命令的速度在一定范围内跟<code>set</code>是一致的，<code>XADD</code>命令的速度非常快，在一个普通的机器上，一秒钟可以插入50w~100w条数据。<br>我们感兴趣的是在消费者群组的阻塞场景下，从通过<code>XADD</code>命令向streams中插入一条数据，到消费者通过群组读取到这条消息的性能。<br>为了测试消息从产生到消费间的延迟，我们使用ruby程序进行测试，将消息的产生时间作为消息的一个字段，然后把消息推送到streams中，客户端收到消息后使用当前时间跟生产时间进行对比，从而计算出消息的延迟时间。这个程序未进行性能优化，运行在一个双核的机器上，同时redis也运行在这台机器上，以此来模拟不是理想条件下的场景。消息每秒钟产生1w条，群组内有10个消费者消费数据。测试结果如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Processed between 0 and 1 ms -&gt; 74.11%</span><br><span class="line">Processed between 1 and 2 ms -&gt; 25.80%</span><br><span class="line">Processed between 2 and 3 ms -&gt; 0.06%</span><br><span class="line">Processed between 3 and 4 ms -&gt; 0.01%</span><br><span class="line">Processed between 4 and 5 ms -&gt; 0.02%</span><br></pre></td></tr></table></figure>
+<p>99.9％的请求的延迟小于等于2毫秒，而且异常值非常接近平均值。另外需要注意的两点：</p>
+<ol>
+<li>消费者每次处理1w条消息，这样增加了一些延迟，这样做是为了消费速度较慢的消费者能够保持保持消息流。</li>
+<li>用来做测试的系统相比于现在的系统非常慢。</li>
+</ol>
+<p>官方链接 <a href="https://redis.io/topics/streams-intro" target="_blank" rel="noopener">https://redis.io/topics/streams-intro</a></p>
+
+  </div>
+
+  <br/><br/><br/><br/>
+
+  
+
+  <div class="copyright" >
+
+    <a class="license-image" rel="license" href="http://creativecommons.org/licenses/by
+-nc
+-sa
+/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-sa/4.0/80x15.png" /></a>
+
+    <div>
+
+      <p>本作品采用
+
+      <a class="license-word-hyper" rel="license" href="http://creativecommons.org/licenses/by
+-nc
+-sa
+/4.0/">
+        知识共享署名
+-非商业性使用
+-相同方式共享
+4.0 国际许可协议</a>
+
+      进行许可。</p>
+
+    </div>
+
+    </div>
+
+
+  <div id="top">
+    <a href="#">▲</a>
+    <a href="#footer">▼</a>
+</div>
+
+  
+
+
+<div id="comment"></div>
+
+
+
+
+
+</post>
+
+  </div>
+
+  <foot id="footer">
+  <hr class="boldline"/>
+  <p class="center font">
+    &copy - <a href="https://pcrab.ml" target="_blank" rel="noopener">Pcrab</a> -  2019 -  2020 - Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">hexo</a>  Themed by <a href="https://github.com/pcrab/hexo-theme-quark" target="_blank" rel="noopener"> quark </a> 
+  </p>
+  <br/>
+</foot>
+
+</body>
+</html>
