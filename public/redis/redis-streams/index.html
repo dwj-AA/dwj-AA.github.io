@@ -1,97 +1,84 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  
-
-  
-  <title>redis-streams | 杜文杰</title>
+<html lang=>
+  <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="description" content="">
+  <meta name="keywords" content="">
   
+    <link rel="icon" href="">
   
-  
-  <meta name="description" content="概述相较于Redis4.0，Redis5.0增加了很多新的特性，而streams是其中最重要的特性之一。streams是redis 的一种基本数据结构，它是一个新的强大的支持多播的可持久化的消息队列，在设计上借鉴了kafaka。streams的数据类型本身非常简单，有点类似于hash结构，但是它的额外特性异常强大且复杂：  支持持久化。streams能持久化存储数据，不同于pub&#x2F;sub机制和li">
-<meta name="keywords" content="Redis">
-<meta property="og:type" content="article">
-<meta property="og:title" content="redis-streams">
-<meta property="og:url" content="http:&#x2F;&#x2F;goldlion.info&#x2F;blog&#x2F;redis&#x2F;redis-streams&#x2F;index.html">
-<meta property="og:site_name" content="杜文杰">
-<meta property="og:description" content="概述相较于Redis4.0，Redis5.0增加了很多新的特性，而streams是其中最重要的特性之一。streams是redis 的一种基本数据结构，它是一个新的强大的支持多播的可持久化的消息队列，在设计上借鉴了kafaka。streams的数据类型本身非常简单，有点类似于hash结构，但是它的额外特性异常强大且复杂：  支持持久化。streams能持久化存储数据，不同于pub&#x2F;sub机制和li">
-<meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2020-04-10T07:06:16.180Z">
-<meta name="twitter:card" content="summary">
-  
-    <link rel="alternate" href="/blog/atom.xml" title="杜文杰" type="application/atom+xml">
-  
-  
-    <link rel="icon" href="/blog/images/default-avatar.jpg">
-  
-  
-    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
-  
-  <link rel="stylesheet" href="/blog/css/style.css">
-  <link rel="stylesheet" href="/blog/css/highlight.css">
+    
+  <title>redis-streams | 杜文杰</title>
+  <link rel="stylesheet" href="/blog/style.css">
+  <link rel="stylesheet" href="/blog/lib/jquery.fancybox.min.css">
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
 
 <body>
-  <div id="fullpage" class="mobile-nav-right">
-    
-      <div id="wrapper" title="图片来自网络">
-    
-    
-      <header id="header">
-  <div id="nav-toggle" class="nav-toggle"></div>
-  <div class="head-box global-width">
-    <nav class="nav-box nav-right">
+  <header>
+  <div class="header-container">
+    <a class='logo' href="/blog/">
+      <span>杜文杰</span>
+    </a>
+    <ul class="right-header">
       
-        <a class="nav-item" href="/blog/" title
-        
-        >首页</a>
+        <li class="nav-item">
+          
+            <a href="/blog/" class="item-link">首页</a>
+          
+        </li>
       
-        <a class="nav-item" href="/blog/archives" title
-        
-        >归档</a>
+        <li class="nav-item">
+          
+            <a href="/blog/about" class="item-link">关于</a>
+          
+        </li>
       
-    </nav>
+        <li class="nav-item">
+          
+            <a href="/blog/archives" class="item-link">归档</a>
+          
+        </li>
+      
+        <li class="nav-item">
+          
+            <a href="/blog/tags" class="item-link">标签</a>
+          
+        </li>
+      
+    </ul>
   </div>
 </header>
-      <div id="middlecontent" title class="global-width sidebar-right">
-        <section id="main"><article id="post-redis-streams" class="article global-container article-type-post" itemscope itemprop="blogPost">
-  
-    <header class="article-header">
-      
-  
-    <h1 class="article-title" itemprop="name">
-      redis-streams
-    </h1>
-  
 
-    </header>
-  
-  <div class="article-meta">
-    <a href="/blog/redis/redis-streams/" class="article-date">
-  <time datetime="2019-11-28T09:16:40.000Z" itemprop="datePublished">2019-11-28</time>
-</a>
-    
+  <main id='post'>
+  <div class="content">
+    <article>
+        <section class="content markdown-body">
+          <h1>redis-streams</h1>
+          <div class='post-meta'>
+            <i class="fa fa-calendar" aria-hidden="true"></i> <time>2019/11/28</time>
+            
+              | <i class="fa fa-folder-open-o" aria-hidden="true"></i> 
   <div class="article-category">
     <a class="article-category-link" href="/blog/categories/redis/">Redis</a>
   </div>
 
-    
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/blog/tags/Redis/" rel="tag">Redis</a></li></ul>
 
-  </div>
-  
-    <span id="busuanzi_container_page_pv">
-      本文总阅读量<span id="busuanzi_value_page_pv"></span>次
-    </span>
-  
 
-  <div class="article-inner">
-    
-    <div class="article-content article-content-cloud" itemprop="articleBody">
-      
-        <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>相较于Redis4.0，Redis5.0增加了很多新的特性，而streams是其中最重要的特性之一。streams是redis 的一种基本数据结构，它是一个新的强大的支持多播的可持久化的消息队列，在设计上借鉴了kafaka。streams的数据类型本身非常简单，有点类似于hash结构，但是它的额外特性异常强大且复杂：</p>
+            
+            
+              | 
+                  <i class="fa fa-tag" aria-hidden="true"></i>
+                
+               
+  <a href="/blog/tags/#Redis" class='tag'>Redis</a>
+
+
+            
+          </div>
+          <h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>相较于Redis4.0，Redis5.0增加了很多新的特性，而streams是其中最重要的特性之一。streams是redis 的一种基本数据结构，它是一个新的强大的支持多播的可持久化的消息队列，在设计上借鉴了kafaka。streams的数据类型本身非常简单，有点类似于hash结构，但是它的额外特性异常强大且复杂：</p>
 <ul>
 <li>支持持久化。streams能持久化存储数据，不同于<code>pub/sub</code>机制和<code>list</code> 消息被消费后就会被删除，streams消费过的数据会被持久化的保存在历史中。</li>
 <li>支持多播。 这一点跟 <code>pub/sub</code>有些类似。</li>
@@ -175,158 +162,96 @@
 </ol>
 <p>官方链接 <a href="https://redis.io/topics/streams-intro" target="_blank" rel="noopener">https://redis.io/topics/streams-intro</a></p>
 
-      
-    </div>
+        </section>
+    </article>
     
-      <footer class="article-footer">
-        完
-      </footer>
-    
-  </div>
-  
-    
-    <link rel="stylesheet" href="/css/gitment.css"> 
-<script src="/js/gitment.js"></script>
-
-<div id="gitmentContainer"></div>
-
-<script>
-var gitment = new Gitment({
-  owner: '',
-  repo: '',
-  oauth: {
-    client_id: '',
-    client_secret: '',
-  },
-})
-gitment.render('gitmentContainer')
-</script>
-
-  
-  
-</article>
-</section>
-        <aside id="sidebar">
-  
-    <div class="widget-box">
-  <div class="avatar-box">
-    <img class="avatar" src="/blog/images/default-avatar.jpg" title="图片来自网络"></img>
-    <h3 class="avatar-name">
-      
-        一路烟霞
-      
-    </h3>
-    <p class="avatar-slogan">
-      特别耐撕的小前端，资深的打酱油攻城狮。
-    </p>
-  </div>
-</div>
-
-
-  
-    
-  <div class="widget-box">
-    <h3 class="widget-title">Categories</h3>
-    <div class="widget">
-      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/blog/categories/redis/">Redis</a></li></ul>
-    </div>
-  </div>
-
-
-  
-    
-  <div class="widget-box">
-    <h3 class="widget-title">Tags</h3>
-    <div class="widget">
-      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/blog/tags/Redis/" rel="tag">Redis</a></li></ul>
-    </div>
-  </div>
-
-
-  
-    
-  <div class="widget-box">
-    <h3 class="widget-title">Tag Cloud</h3>
-    <div class="widget tagcloud">
-      <a href="/blog/tags/Redis/" style="font-size: 10px;">Redis</a>
-    </div>
-  </div>
-
-  
-    
-  <div class="widget-box">
-    <h3 class="widget-title">Archives</h3>
-    <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/blog/archives/2019/11/">November 2019</a></li></ul>
-    </div>
-  </div>
-
-  
-    
-  <div class="widget-box">
-    <h3 class="widget-title">Recent Posts</h3>
-    <div class="widget">
-      <ul>
         
-          <li>
-            <a href="/blog/redis/redis-streams/">redis-streams</a>
-          </li>
-        
-      </ul>
-    </div>
   </div>
-
-  
-      <div class="widget-box">
-    <h3 class="widget-title">友链</h3>
-    <div class="widget">
-      
-        <a style="display: block;" href="https://yiluyanxia.github.io/" title target='_blank'
-        >一路眼瞎</a>
-      
+  <aside>
+    
+    <div class="toc-container">
+        <h1>目录</h1>
+        <div class="content">
+            <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#概述"><span class="toc-number">1.</span> <span class="toc-text">概述</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#基础内容"><span class="toc-number">2.</span> <span class="toc-text">基础内容</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#数据-ID"><span class="toc-number">2.1.</span> <span class="toc-text">数据 ID</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#向streams插入数据"><span class="toc-number">2.2.</span> <span class="toc-text">向streams插入数据</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#从streams中读取数据"><span class="toc-number">2.3.</span> <span class="toc-text">从streams中读取数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#按范围查询-XRANGE-和-XREVRANGE"><span class="toc-number">2.3.1.</span> <span class="toc-text">按范围查询: XRANGE 和 XREVRANGE</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#通过XREAD读取数据"><span class="toc-number">2.3.2.</span> <span class="toc-text">通过XREAD读取数据</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#消费者组"><span class="toc-number">3.</span> <span class="toc-text">消费者组</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#创建一个消费者群组"><span class="toc-number">3.1.</span> <span class="toc-text">创建一个消费者群组</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#从永久失败中恢复"><span class="toc-number">3.2.</span> <span class="toc-text">从永久失败中恢复</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#streams的可观察性"><span class="toc-number">4.</span> <span class="toc-text">streams的可观察性</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#设置streams上限"><span class="toc-number">5.</span> <span class="toc-text">设置streams上限</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#一些特殊的id"><span class="toc-number">6.</span> <span class="toc-text">一些特殊的id</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#持久化，复制和消息安全性"><span class="toc-number">7.</span> <span class="toc-text">持久化，复制和消息安全性</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#从streams中删除数据"><span class="toc-number">8.</span> <span class="toc-text">从streams中删除数据</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#streams的性能"><span class="toc-number">9.</span> <span class="toc-text">streams的性能</span></a></li></ol>
+        </div>
     </div>
-  </div>
+    
+  </aside>
+</main>
 
-  
-</aside>
-      </div>
-      <footer id="footer">
-  <div class="foot-box global-width">
-    &copy; 2020 杜文杰 &nbsp;&nbsp;
-    Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
-    &nbsp;|&nbsp;主题 <a href="https://github.com/yiluyanxia/hexo-theme-antiquity" target="_blank" rel="noopener">antiquity</a>
-    <br>
-    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
-    <span id="busuanzi_container_site_pv">不蒜子告之   阁下是第<span id="busuanzi_value_site_pv"></span>个访客</span>
+
+
+  <footer>
+  <div class="copyright">
+    <div>
+      &copy; 2020 | Powered by <a href="https://hexo.io" target="_blank">Hexo</a>&nbsp
+    </div>
+    <div>
+      Theme by <a href="https://github.com/lewis-geek/hexo-theme-Aath" target="_blank">Aath</a>
+    </div>
   </div>
 </footer>
-      <script src="https://code.jquery.com/jquery-2.0.3.min.js"></script>
+
+
+<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+<script src="/blog/lib/in-view.min.js"></script>
+<script src="/blog/lib/lodash.min.js"></script>
 <script>
-if (!window.jQuery) {
-var script = document.createElement('script');
-script.src = "/js/jquery-2.0.3.min.js";
-document.body.write(script);
-}
+  var isDown = true
+  var oldY = 0
+  inView.offset(50)
+
+  document.body.addEventListener('touchstart', function(){});
+  
+  window.addEventListener('scroll', _.throttle(e => {
+    var currentY = window.scrollY
+    if((oldY - currentY) < 0) {
+      isDown = true
+    } else {
+      isDown = false
+    }
+    oldY = currentY
+  }, 250))
+
+  $("article img").each(function() {
+      var strA = "<a data-fancybox='gallery' href='" + this.src + "'></a>";
+      $(this).wrapAll(strA);
+  });
+
+  $('.toc-link').each(function() {
+      var href = $(this).attr("href");
+      
+      inView(href).on('exit', () => {
+        if (isDown) {
+          handleActive(href)
+        }
+      })
+
+      inView(href).on('enter', () => {
+        if (!isDown) {
+          handleActive(href)
+        }
+      })
+
+      this.onclick = function(e) {
+        var pos = $(href).offset().top - 10;
+        $("html,body").animate({scrollTop: pos}, 300);
+        setTimeout(() => {
+          handleActive(href)
+        }, 350)
+        return false
+      }
+  })
+
+  function handleActive(href) {
+    document.querySelectorAll('.toc-link').forEach(elm => {
+      elm.classList.remove('active')
+    })
+    document.querySelector(".toc [href='"+ href +"']").classList.add('active')
+  }
 </script>
-
-  <link rel="stylesheet" href="/blog/fancybox/jquery.fancybox.css">
-  <script src="/blog/fancybox/jquery.fancybox.pack.js"></script>
+<script src="/blog/lib/jquery.fancybox.min.js"></script>
 
 
-<script src="/blog/js/script.js"></script>
-
-
-
-    </div>
-    <nav id="mobile-nav" class="mobile-nav-box">
-  <div class="mobile-nav-img mobile-nav-top"></div>
-  
-    <a href="/blog/" class="mobile-nav-link">首页</a>
-  
-    <a href="/blog/archives" class="mobile-nav-link">归档</a>
-  
-  <div class="mobile-nav-img  mobile-nav-bottom"></div>
-</nav>    
-  </div>
 </body>
 </html>
